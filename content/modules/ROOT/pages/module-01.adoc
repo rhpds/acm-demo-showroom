@@ -1,149 +1,200 @@
-= Building an Application with rpms
+== Cluster Lifecycle (Cluster Lifecycle Management use case)
 
-== Downloading the UBI
+At a high level, Cluster Lifecycle management is about creating, upgrading, destroying, and importing clusters in a multi-cloud environment.
 
-In this lab, you will be installing software into the container 
-image running as an interactive application. To do this you will
-need `yum`, but do not need `systemd` for managing services within the
-container environment.  For that reason, you will be using the *Standard*
-UBI image (as opposed to the Minimal or Multi-service images).
+In the second email you received from the RHDP system, it included AWS credentials: Access Key ID, Secret Access Key, and the Base DNS Domain. To create a new OpenShift cluster in AWS, we will need these keys to create a Provider Connection.
 
-Using the "buildah from" command will download and meld the container image. This particular image we are using is the Red Hat Universal Base Image or UBI. From the ourput of the command, you will notice that we are pulling down the latest one, which is for RHEL 9. 
-
-. Execute the  download the Standard UBI
-image from Red Hat's registry.
-
+. On the left bar, select *Credentials* and then select *Add Credential*.
 +
-[source,sh,role=execute]
-----
-buildah from registry.access.redhat.com/ubi9/ubi
-----
+image::acm-add-credentials.png[Adding a new credential in ACM]
 
-[#repositories]
-== Installing Repositories
-In this lab, you are going to containerize a software package that is already
-packaged in RPM format and stored in the Extra Packages for Enterprise Linux
-(EPEL) repository.
+. You will need to provide connection details:
+* **Credential Type**: Choose Amazon Web Services and then, Amazon Web Services again.
+* **Credential Name**: `aws`
+* **Namespace**: `open-cluster-management`
+* **Base DNS Domain**: This is in the email from the RHDP system.
+. Click *NEXT*.
+. **Access Key ID**: This is in the email from the RHDP system.
+. **Secret Access Key**: This is in the email from the RHDP system.
+. Click *NEXT* - We don't need to configure a Proxy.
+. **Red Hat OpenShift pull secret**: Get from your Red Hat login.
+. **SSH private and public keys(optional)**: Use an existing key pair or generate a new one. Note that the key pair needs to be in the PEM format.
+. Click *NEXT*, verify the information, and add the credential.
 
-Software often has requirements for prerequisite software that must be installed
-on the machine for it to work properly.  `yum` will resolve those
-dependencies for you, as long as it can locate the required packages in
-repositories defined on the machine.  The Red Hat Universal Base Image (UBI)
-downloaded in the previous step has access to some Red Hat Enterprise Linux
-repositories.  However, the target package for the lab is from EPEL.  
+=== Create a new OpenShift cluster in AWS
 
-. In the command below, `buildah` is going to run a command on the
-`ubi-working-container` image.  The `--` indicates that the command should be
-executed from within the container, which means the results will be applied into
-the container image.  Lastly, you are providing the `yum` command to install a
-package that defines all of the repositories from EPEL, `epel-release-latest-9`.
-
+. From the *Infrastructure -> Clusters* page, select *Create Cluster*.
+. Select *Amazon Web Services* and then *Standalone*.
+. Select the Infrastructure provider credential: `aws`.
+. **Name**: `cluster1`
+. Leave the Cluster set empty for now.
+. Select a Release Image, choose OCP 4.19.xx version or whatever is newest.
+. Add a label of `environment=prod`. Click *NEXT*.
+. Change the region according to the table below:
 +
-[source,bash]
-----
-buildah run ubi-working-container -- yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
-----
-
-
-. You can verify that the above command did not install the RPM on the host system.
-
+[options="header"]
+|===
+|If you provisioned your ACM Hub cluster in... |Select region...
+|NORTH AMERICA |`us-west-1` or `us-west-2`
+|EUROPE/EMEA |`eu-west-2` or `eu-west-3`
+|ASIA PACIFIC |`ap-southeast-2` or `ap-northeast-2` or `ap-east-1`
+|===
 +
-[source,bash]
-----
-rpm -q epel-release
-----
-
-NOTE: If your repository configurations are not distributed as an RPM, but instead as
-individual `.repo` files, you could use the `buildah copy` command to copy
-files from the host operating system into the container image.  You will see
-an example of using `buildah copy` later in this lab.
-
-[#software]
-== Installing Software
-
-
-. Now that the yum repositories are defined within the container, execute 
-another `yum install`, within the container, to install the target
-software: `moon-buggy`.
-
+NOTE: The deployment might still fail due to a limited amount of elastic IP addresses. If so, please retry with a different availability zone.
 +
-[source,bash]
-----
-buildah run ubi-working-container -- yum -y install moon-buggy
-----
+image::acm-create-cluster-region.png[Selecting the AWS region for a new cluster]
 
-
-== Committing the Container Image
-
-. At this point, the container is configured.  It is time to transition from a
-working container into a committed image.  In the command below, you will use
-the `buildah` command to commit the working container to an image called:
-`moon-buggy`.
-
+. Leave everything else as default, click *NEXT* on the other screens, or select *7 - Review and create* on the menu and then click *CREATE*.
 +
-[source,bash]
-----
-buildah commit ubi-working-container moon-buggy
-----
+image::acm-create-cluster-review.png[Reviewing cluster details before creation]
 
+In about 45 minutes, this new cluster will be ready to go!
 +
-. The output of `podman image list` should confirm the image was created.
+image::acm-cluster-creation-progress.png[Cluster creation in progress]
 
+=== Creating a Single Node Cluster (SNO) in AWS
+
+In this exercise, we will create a single-node OpenShift cluster (OCP 4.13 or above required) to save time and resources.
+
+. From the *Clusters* page, select *Create Cluster*.
+. Select *Amazon Web services* and then *Standalone*.
+. Select the Infrastructure provider credential: `aws`.
+. **Name**: `cluster2-sno`
+. Leave the ClusterSet empty for now.
+. Select a Release Image, choose OCP 4.19.x version or whatever is newest.
+. Add a label of `environment=qa`. Click *NEXT*.
+. Select an appropriate region as described previously.
+. Click on *Worker Pool 1* and change the *Node count* to `0`.
 +
-[source,bash]
-----
-podman image list
-----
+image::sno-worker-pool-zero.png[Setting worker node count to zero for a SNO cluster]
 
-
-== Deploy the Container
-
-Now the software has been installed and a new container image created.  It is
-time to spawn a runtime of the container image and validate the software.  The
-software we are using is a command line command.  
-
-. When you `run` the container,
-it will be in interactive (`-it`) mode, based on the `moon-buggy` container
-image and the command run interactively will be `/usr/bin/moon-buggy`.
-
+. Proceed with the defaults until the final step. Before creating, turn *YAML: ON*.
+. Click on *"install-config"* in the YAML window pane.
+. Change the master `replicas` number to `1` (it will likely be `3`).
+. Double-check that the worker `replicas` is `0`.
 +
-[source,bash]
+[source,yaml]
 ----
-podman run -it moon-buggy /usr/bin/moon-buggy
+apiVersion: v1
+metadata:
+  name: cluster2-sno
+baseDomain: sandbox2003.opentlc.com
+controlPlane:
+  name: master
+  hyperthreading: Enabled
+  replicas: 1
+platform:
+  aws:
+    rootVolume:
+      iops: 4000
+      size: 100
+      type: io1
+    type: m5.xlarge
+compute:
+- name: worker
+  hyperthreading: Enabled
+  replicas: 0
+platform:
+  aws:
+# ... rest of config
 ----
+. Click on *CREATE*.
 
-+
-[source,textinfo]
-----
+=== Creating a Hosted Cluster with Hosted Control Planes
 
-<<< OUTPUT ABRIDGED >>>
-               MM     MM   OOOOO    OOOOO   NN     N
-               M M   M M  O     O  O     O  N N    N
-               M  M M  M  O     O  O     O  N  N   N
-               M   M   M  O     O  O     O  N   N  N
-               M       M  O     O  O     O  N    N N
-               M       M   OOOOO    OOOOO   N     NN
+NOTE: Hosted Control Planes for non-Baremetal Agent Providers is a technology preview.
 
-                     BBBBBB   U     U   GGGGG    GGGGG   Y     Y
-                     B     B  U     U  G     G  G     G   Y   Y
-                     BBBBBB   U     U  G        G          Y Y
-                     B     B  U     U  G   GGG  G   GGG     Y
-                     B     B  U     U  G     G  G     G    Y
-                     BBBBBB    UUUUU    GGGGG    GGGGG   YY
+In this section, we will enable the feature and deploy a Hosted Cluster on AWS.
 
-<<< OUTPUT ABRIDGED >>>
-----
+==== Setup Hosted Control Planes functionality
 
-. You can now play the Moon Buggy game, which is a text-based version of the
-popular Moon Patrol.  When you are finished, use the `q` command to quit the
-game, which will terminate the container.
-
-+
-Alternatively, you can use `podman` to kill the running container from
-*Terminal 2*.
-
+. Log in to the bastion machine.
+. Configure your AWS credentials. For the default region name, use `us-east-2`.
 +
 [source,bash]
 ----
-podman kill $(podman ps | grep -v CONTAINER | cut -f1 -d" " )
+$ aws configure
 ----
+. Create an S3 bucket to host OIDC discovery documents.
++
+[source,bash]
+----
+export BUCKET_NAME=hcp-oidc-$GUID-$RANDOM
+export REGION=us-east-2
+# Create the S3 bucket
+aws s3api create-bucket --bucket $BUCKET_NAME \
+--create-bucket-configuration LocationConstraint=$REGION \
+--region $REGION
+# Remove public access block
+aws s3api delete-public-access-block --bucket $BUCKET_NAME
+# Create and apply the bucket policy
+echo '{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": [ "s3:PutObject", "s3:GetObject" ],
+      "Resource": "arn:aws:s3:::${BUCKET_NAME}/*"
+    }
+  ]
+}' | envsubst > policy.json
+aws s3api put-bucket-policy --bucket $BUCKET_NAME --policy file://policy.json
+----
+. Create a secret in the `local-cluster` namespace for the HyperShift operator.
++
+[source,bash]
+----
+$ oc create secret generic hypershift-operator-oidc-provider-s3-credentials \
+  --from-file=credentials=$HOME/.aws/credentials \
+  --from-literal bucket=$BUCKET_NAME \
+  --from-literal region=us-east-2 -n local-cluster
+
+$ oc label secret hypershift-operator-oidc-provider-s3-credentials \
+  cluster.open-cluster-management.io/credentials="" \
+  cluster.open-cluster-management.io/type=awss3 -n local-cluster
+----
+
+==== Deploying the Hosted Cluster
+
+. Copy your pull secret into a file named `pull-secret` in the home directory on the bastion machine.
+. Download and install the HCP CLI from the OpenShift console under *Help (?) -> Command Line Tools*.
+. Create a namespace for your hosted cluster objects.
++
+[source,bash]
+----
+$ oc new-project hcp-clusters
+----
+. Export the necessary environment variables.
++
+[source,bash]
+----
+$ export CLUSTER_NAME=hcp
+$ export INFRA_ID=hcp
+$ export NAMESPACE=hcp-clusters
+$ export BASE_DOMAIN=<<replace here with your base domain from the RHDP email>>
+----
+. Create the hosted cluster.
++
+[source,bash]
+----
+hcp create cluster aws \
+--role-arn <<your role info here>> \
+--instance-type m5.large \
+--region us-east-2 \
+--auto-repair \
+--generate-ssh \
+--name hcp-cluster \
+--infra-id infra-id-hcp \
+--namespace clusters \
+--base-domain $BASE_DOMAIN \
+--node-pool-replicas 1 \
+--pull-secret /home/lab-user/pull-secret \
+--release-image quay.io/openshift-release-dev/ocp-release:4.14.0-x86_64 \
+--endpoint-access=Public \
+--sts-creds /home/lab-user/sts-creds.json \
+--infra-availability-policy SingleReplica \
+--control-plane-availability-policy SingleReplica
+----
++
+NOTE: The command finishes quickly, but the installation process takes around 15 minutes. You can monitor the progress from the cluster's detail page in the ACM UI.
