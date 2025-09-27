@@ -1,0 +1,87 @@
+== End to End Visibility (Observability use case)
+
+ACM integrates with Grafana to provide visibility into system alerts, application metrics, and overall system health across your clusters.
+
+=== Create the S3 bucket
+
+. Log in to the bastion host and configure your AWS CLI.
++
+[source,bash]
+----
+$ aws configure
+----
+. Create an S3 bucket for Grafana/Thanos storage. Take note of the bucket name.
++
+[source,bash]
+----
+$ aws s3 mb s3://grafana-$GUID
+----
+
+=== Integrate Grafana into ACM
+
+. On the bastion host, create the observability namespace.
++
+[source,bash]
+----
+$ oc create namespace open-cluster-management-observability
+----
+. Copy the pull secret into this new namespace.
++
+[source,bash]
+----
+$ DOCKER_CONFIG_JSON=`oc extract secret/pull-secret -n openshift-config --to=-`
+$ oc create secret generic multiclusterhub-operator-pull-secret \
+  -n open-cluster-management-observability \
+  --from-literal=.dockerconfigjson="$DOCKER_CONFIG_JSON" \
+  --type=kubernetes.io/dockerconfigjson
+----
+. Create a file named `thanos-object-storage.yaml` with your S3 bucket name and AWS keys.
++
+[source,yaml]
+----
+apiVersion: v1
+kind: Secret
+metadata:
+  name: thanos-object-storage
+  namespace: open-cluster-management-observability
+type: Opaque
+stringData:
+  thanos.yaml: |
+    type: s3
+    config:
+      bucket: YOUR_S3_BUCKET
+      endpoint: s3.amazonaws.com
+      insecure: false
+      access_key: AWS_ACCESS_KEY_ID
+      secret_key: AWS_SECRET_ACCESS_KEY
+----
+. Apply this secret.
++
+[source,bash]
+----
+$ oc create -f thanos-object-storage.yaml
+----
+. Create a file named `multiclusterobservability_cr.yaml`.
++
+[source,yaml]
+----
+kind: MultiClusterObservability
+apiVersion: observability.open-cluster-management.io/v1beta2
+metadata:
+  name: observability
+spec:
+  observabilityAddonSpec: {}
+  storageConfig:
+    metricObjectStorage:
+      key: thanos.yaml
+      name: thanos-object-storage
+----
+. Apply this custom resource to enable observability.
++
+[source,bash]
+----
+$ oc apply -f multiclusterobservability_cr.yaml
+----
+. After a few minutes, a *Grafana* link will appear in the top right of the *Clusters* screen in the ACM console. Click it to view the multi-cluster dashboards.
++
+image::grafana-dashboard.png[Grafana dashboard showing multi-cluster overview]
