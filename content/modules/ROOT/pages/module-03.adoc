@@ -1,0 +1,45 @@
+== Governance, Risk, and Compliance (Security and compliance use case)
+
+RHACM provides Governance, Risk, and Compliance (GRC) functionality to ensure your clusters and applications do not drift from their original configurations.
+
+=== Creating Policies in ACM
+
+In RHACM, you build policies that are applied to managed clusters to govern their configurations. This reduces risk and ensures compliance.
+
+. To create a policy, navigate to the *Governance* screen and click *Create policy*.
+. We will build a simple policy to check for expiring certificates.
+* **Name**: `policy-grc-cert`
+* **Namespace**: `default`
+. Click *NEXT*.
+. For *Policy Templates*, click *Add policy template* and select *Certificate Management expiration*.
+. Click *NEXT*.
+. For *Placement*, click *New placement* and select `global` as the cluster set.
+. Leave other settings as default, click *NEXT*, review, and then *SUBMIT*.
+
+The policy will be created and applied to all clusters in the `global` ClusterSet. It will report a non-compliant status if it finds any certificate set to expire in less than the `minimumDuration`.
+
+image::policy-results-view.png[Viewing the results of a GRC policy]
+
+=== Deploying Policies with Policy Generator
+
+The Policy Generator can be used to create configuration policies. We will deploy an application that generates two policies:
+* `openshift-gitops-installed`: Informs if the OpenShift GitOps operator is installed.
+* `kubeadmin-removed`: Informs if the `kubeadmin` user has been removed.
+
+.Prerequisite: Ensure the `local-cluster` has the label `rhdp_usage=development`.
+
+. In the ACM UI, navigate to *Applications*.
+. Click *Create application*, select *Subscription*.
+. **Name**: `policy-generator`
+. **Namespace**: `policy-generator`
+. Select the *GIT repository* type.
+* **URL**: `https://github.com/levenhagen/demo-policygenerator.git`
+* **Branch**: `main`
+. Under deployment options, select *Deploy application resources only on clusters matching specified labels*.
+* **Label**: `name`
+* **Value**: `local-cluster`
+. Click *Create*.
+. After the application deploys, navigate to the *Governance* menu and click the *Policies* tab. You should see the two new policies.
+. If a policy is not compliant (e.g., if GitOps was not installed), you can change its remediation action from `inform` to `enforce` by clicking the three-dots menu next to the policy. This will cause ACM to automatically remediate the violation.
++
+image::enforce-policy.png[Setting a policy's remediation to Enforce]
