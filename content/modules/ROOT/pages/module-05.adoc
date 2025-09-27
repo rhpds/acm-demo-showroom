@@ -1,0 +1,15 @@
+== Appendix
+
+=== Importing a Kubernetes cluster
+
+You can import existing OpenShift clusters or other Kubernetes clusters (EKS, AKS, GKE, etc.).
+
+. In ACM, click on *Add Cluster -> Import Cluster*.
+. Give the cluster a name and add any desired labels (e.g., `rhdp_usage=development`).
+. Click *NEXT*, *NEXT*, and then *GENERATE COMMAND*.
+. Copy the generated `kubectl` command.
+. From a terminal where you are logged into your target cluster, paste and run the copied command.
++
+image::import-cluster-command.png[Import command output in the terminal]
+
+. After 5-10 minutes, the cluster will appear as `Ready` in the ACM cluster list.
